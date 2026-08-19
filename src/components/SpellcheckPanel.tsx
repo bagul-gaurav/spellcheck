@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useState, type CSSProperties } from "react"
 import { scanProject, type ScanProgress, type SpellIssue } from "../lib/scan"
 import { replaceWordEverywhere } from "../lib/textReplace"
 import { jumpToNode } from "../lib/navigation"
@@ -96,7 +96,7 @@ export function SpellcheckPanel({ dictionaryWords, onDictionaryChange }: Spellch
           <div className="progress-track">
             <div
               className="progress-fill"
-              style={{ width: progress && progress.total > 0 ? `${(progress.scanned / progress.total) * 100}%` : "0%" }}
+              style={{ "--progress": progress && progress.total > 0 ? progress.scanned / progress.total : 0 } as CSSProperties}
             />
           </div>
           <span className="progress-label">
