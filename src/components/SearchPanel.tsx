@@ -9,6 +9,7 @@ export function SearchPanel() {
   const [caseSensitive, setCaseSensitive] = useState(false)
   const [wholeWord, setWholeWord] = useState(false)
   const [results, setResults] = useState<SearchResult[]>([])
+  const [truncated, setTruncated] = useState(false)
   const [searching, setSearching] = useState(false)
   const [searched, setSearched] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -16,8 +17,9 @@ export function SearchPanel() {
   const runSearch = useCallback(async () => {
     setSearching(true)
     try {
-      const found = await searchProject(query, { caseSensitive, wholeWord })
-      setResults(found)
+      const outcome = await searchProject(query, { caseSensitive, wholeWord })
+      setResults(outcome.results)
+      setTruncated(outcome.truncated)
       setSearched(true)
     } finally {
       setSearching(false)
@@ -93,6 +95,12 @@ export function SearchPanel() {
       </div>
 
       {searched && results.length === 0 && <p className="empty-state">No matches found.</p>}
+
+      {truncated && (
+        <p className="panel-summary">
+          Showing the first {results.length} matches — narrow your search to see the rest.
+        </p>
+      )}
 
       {results.length > 0 && (
         <ul className="results-list search-results">
