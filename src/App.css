@@ -55,6 +55,11 @@ body {
 }
 
 .icon-button {
+  /* Framer's own stylesheet sets a global `button { width: 100% }` — every
+     button here must explicitly opt back out of that or it'll try to fill
+     its flex container and overflow (this is what silently ate the second
+     top-bar icon: it rendered at 100% width, pushing it off the edge). */
+  width: auto;
   appearance: none;
   border: none;
   background: transparent;
@@ -256,6 +261,8 @@ body {
 }
 
 .chip {
+  /* See .icon-button — opting out of Framer's global button{width:100%}. */
+  width: auto;
   appearance: none;
   border: 1px solid var(--framer-color-tint-dimmed);
   background: transparent;
@@ -282,6 +289,8 @@ body {
 }
 
 .link-button {
+  /* See .icon-button — opting out of Framer's global button{width:100%}. */
+  width: auto;
   appearance: none;
   border: none;
   background: transparent;
