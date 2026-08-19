@@ -1,0 +1,8 @@
+{
+  "id": "85c1bd",
+  "name": "Framer Spellcheck Plugin",
+  "modes": [
+    "canvas"
+  ],
+  "icon": "/icon.svg"
+}
