@@ -167,7 +167,14 @@ interface RawTextItem extends Omit<TextItem, "location"> {
 export async function collectTextNodeItemsRaw(scope: NodeQueryScope = framer): Promise<RawTextItem[]> {
   const textNodes = await scope.getNodesWithType("TextNode")
 
-  const texts = await mapWithConcurrency(textNodes, FETCH_CONCURRENCY, node => node.getText())
+  // Some nodes returned by getNodesWithType("TextNode") — e.g. replica nodes
+  // belonging to a non-primary breakpoint or component variant — can still
+  // reject a getText() call host-side ("Node is not a text node"). One bad
+  // node must not abort the whole search, so failures are treated as "no
+  // text" rather than propagated.
+  const texts = await mapWithConcurrency(textNodes, FETCH_CONCURRENCY, node =>
+    node.getText().catch(() => null),
+  )
 
   const items: RawTextItem[] = []
   for (let i = 0; i < textNodes.length; i++) {

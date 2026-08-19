@@ -9,8 +9,9 @@ import { getDictionaryWords } from "./store/dictionary"
 
 framer.showUI({
   position: "top right",
-  width: 340,
+  width: 360,
   height: 520,
+  minWidth: 300,
   resizable: true,
 })
 

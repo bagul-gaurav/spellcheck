@@ -19,22 +19,39 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 10px 10px;
   border-bottom: 1px solid var(--framer-color-divider);
   flex-shrink: 0;
+  /* The plugin panel's usable width is narrower in practice than the iframe
+     box itself (Framer reserves some of it for its own chrome), so this row
+     must never let its own content force an overflow — the icon buttons on
+     the right have flex-shrink:0 below and the title truncates first. */
+  min-width: 0;
 }
 
-.top-bar-left,
-.top-bar-right {
+.top-bar-left {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .top-bar-title {
   font-size: 12px;
   font-weight: 600;
   color: var(--framer-color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .icon-button {
@@ -48,6 +65,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .icon-button:hover {
