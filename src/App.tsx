@@ -1,54 +1,60 @@
-import { framer, CanvasNode, useIsAllowedTo } from "@framer/plugin"
-import { useState, useEffect } from "react"
+import { framer } from "@framer/plugin"
+import { useEffect, useState } from "react"
 import "./App.css"
+import { SpellcheckPanel } from "./components/SpellcheckPanel"
+import { SearchPanel } from "./components/SearchPanel"
+import { DictionaryPanel } from "./components/DictionaryPanel"
+import { getDictionaryWords } from "./store/dictionary"
 
 framer.showUI({
   position: "top right",
-  width: 240,
-  height: 95,
+  width: 340,
+  height: 560,
+  resizable: true,
 })
 
-function useSelection() {
-  const [selection, setSelection] = useState<CanvasNode[]>([])
-
-  useEffect(() => {
-    return framer.subscribeToSelection(setSelection)
-  }, [])
-
-  return selection
-}
+type Tab = "spellcheck" | "search" | "dictionary"
 
 export function App() {
-  const selection = useSelection()
-  const isAllowed = useIsAllowedTo("addSVG")
-  const layer = selection.length === 1 ? "layer" : "layers"
+  const [tab, setTab] = useState<Tab>("spellcheck")
+  const [dictionaryWords, setDictionaryWords] = useState<string[]>([])
+  const [dictionaryLoading, setDictionaryLoading] = useState(true)
 
-  const handleAddSvg = async () => {
-    await framer.addSVG({
-      svg: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><path fill="#999" d="M20 0v8h-8L4 0ZM4 8h8l8 8h-8v8l-8-8Z"/></svg>`,
-      name: "Logo.svg",
-    })
-  }
+  useEffect(() => {
+    let cancelled = false
+    getDictionaryWords()
+      .then(words => {
+        if (!cancelled) setDictionaryWords(words)
+      })
+      .finally(() => {
+        if (!cancelled) setDictionaryLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
-    <main>
-      <p>
-        Welcome! Check out the{" "}
-        <a
-          href="https://framer.com/developers/plugins/introduction"
-          target="_blank"
-        >
-          Docs
-        </a>{" "}
-        to start. You have {selection.length} {layer} selected.
-      </p>
-      <button
-        className="framer-button-primary"
-        onClick={handleAddSvg}
-        disabled={!isAllowed}
-      >
-        Insert Logo
-      </button>
+    <main className="app">
+      <nav className="tabs">
+        <button className={tab === "spellcheck" ? "tab active" : "tab"} onClick={() => setTab("spellcheck")}>
+          Spellcheck
+        </button>
+        <button className={tab === "search" ? "tab active" : "tab"} onClick={() => setTab("search")}>
+          Search
+        </button>
+        <button className={tab === "dictionary" ? "tab active" : "tab"} onClick={() => setTab("dictionary")}>
+          Dictionary{dictionaryWords.length > 0 ? ` (${dictionaryWords.length})` : ""}
+        </button>
+      </nav>
+
+      <div className="tab-content">
+        {tab === "spellcheck" && <SpellcheckPanel dictionaryWords={dictionaryWords} onDictionaryChange={setDictionaryWords} />}
+        {tab === "search" && <SearchPanel />}
+        {tab === "dictionary" && (
+          <DictionaryPanel words={dictionaryWords} loading={dictionaryLoading} onChange={setDictionaryWords} />
+        )}
+      </div>
     </main>
   )
 }
