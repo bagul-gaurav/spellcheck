@@ -1,16 +1,20 @@
 import { useCallback, useMemo, useState, type CSSProperties } from "react"
-import { scanProject, type ScanProgress, type SpellIssue } from "../lib/scan"
+import { scanItems, type ScanProgress, type SpellIssue } from "../lib/scan"
+import { collectPageTextItems } from "../lib/traverse"
 import { replaceWordEverywhere } from "../lib/textReplace"
 import { jumpToNode } from "../lib/navigation"
+import { useCanvasRoot } from "../lib/useCanvasRoot"
 import { addDictionaryWord, toLookupSet } from "../store/dictionary"
 import { ResultsList } from "./ResultsList"
 
-interface SpellcheckPanelProps {
+interface HomePanelProps {
   dictionaryWords: string[]
   onDictionaryChange: (words: string[]) => void
+  onOpenSearch: () => void
 }
 
-export function SpellcheckPanel({ dictionaryWords, onDictionaryChange }: SpellcheckPanelProps) {
+export function HomePanel({ dictionaryWords, onDictionaryChange, onOpenSearch }: HomePanelProps) {
+  const { root, name } = useCanvasRoot()
   const [issues, setIssues] = useState<SpellIssue[]>([])
   const [scanning, setScanning] = useState(false)
   const [progress, setProgress] = useState<ScanProgress | null>(null)
@@ -21,14 +25,14 @@ export function SpellcheckPanel({ dictionaryWords, onDictionaryChange }: Spellch
   const ignoredWords = useMemo(() => toLookupSet(dictionaryWords), [dictionaryWords])
 
   const runScan = useCallback(async () => {
+    if (!root) return
     setScanning(true)
     setError(null)
     setProgress(null)
+    setHasScanned(false)
     try {
-      const found = await scanProject({
-        ignoredWords,
-        onProgress: setProgress,
-      })
+      const items = await collectPageTextItems(root)
+      const found = await scanItems(items, { ignoredWords, onProgress: setProgress })
       setIssues(found)
       setHasScanned(true)
     } catch (err) {
@@ -36,7 +40,7 @@ export function SpellcheckPanel({ dictionaryWords, onDictionaryChange }: Spellch
     } finally {
       setScanning(false)
     }
-  }, [ignoredWords])
+  }, [root, ignoredWords])
 
   const handleJump = useCallback((nodeId: string) => {
     void jumpToNode(nodeId)
@@ -58,11 +62,7 @@ export function SpellcheckPanel({ dictionaryWords, onDictionaryChange }: Spellch
     }
   }, [])
 
-  const handleIgnore = useCallback((issue: SpellIssue) => {
-    setIssues(current => current.filter(item => item.id !== issue.id))
-  }, [])
-
-  const handleAddToDictionary = useCallback(
+  const handleIgnore = useCallback(
     async (issue: SpellIssue) => {
       setBusyId(issue.id)
       try {
@@ -76,19 +76,19 @@ export function SpellcheckPanel({ dictionaryWords, onDictionaryChange }: Spellch
     [onDictionaryChange],
   )
 
-  const pageCount = useMemo(() => new Set(issues.map(issue => issue.location.split(" > ")[0])).size, [issues])
-
   return (
     <div className="panel">
+      <div className="page-indicator">
+        Scanning <strong>{name}</strong>
+      </div>
+
       <div className="panel-toolbar">
-        <button className="framer-button-primary" onClick={() => void runScan()} disabled={scanning}>
-          {scanning ? "Scanning…" : hasScanned ? "Rescan Project" : "Scan Project"}
+        <button className="framer-button-primary" onClick={() => void runScan()} disabled={scanning || !root}>
+          {scanning ? "Scanning…" : hasScanned ? "Rescan This Page" : "Scan This Page"}
         </button>
-        {hasScanned && !scanning && (
-          <span className="panel-summary">
-            {issues.length} issue{issues.length === 1 ? "" : "s"} across {pageCount} location{pageCount === 1 ? "" : "s"}
-          </span>
-        )}
+        <button className="secondary-button" onClick={onOpenSearch}>
+          Search
+        </button>
       </div>
 
       {scanning && (
@@ -108,18 +108,22 @@ export function SpellcheckPanel({ dictionaryWords, onDictionaryChange }: Spellch
       {error && <p className="error-state">{error}</p>}
 
       {!scanning && hasScanned && (
-        <ResultsList
-          issues={issues}
-          onJump={handleJump}
-          onAccept={(issue, replacement) => void handleAccept(issue, replacement)}
-          onIgnore={handleIgnore}
-          onAddToDictionary={issue => void handleAddToDictionary(issue)}
-          busyId={busyId}
-        />
+        <>
+          <p className="panel-summary">
+            {issues.length} issue{issues.length === 1 ? "" : "s"} on this page
+          </p>
+          <ResultsList
+            issues={issues}
+            onJump={handleJump}
+            onAccept={(issue, replacement) => void handleAccept(issue, replacement)}
+            onIgnore={issue => void handleIgnore(issue)}
+            busyId={busyId}
+          />
+        </>
       )}
 
       {!scanning && !hasScanned && !error && (
-        <p className="empty-state">Scan your project to find spelling issues across every page and component.</p>
+        <p className="empty-state">Scan the current page to find spelling issues on it.</p>
       )}
     </div>
   )

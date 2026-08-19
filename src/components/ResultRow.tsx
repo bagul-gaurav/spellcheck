@@ -4,12 +4,12 @@ interface ResultRowProps {
   issue: SpellIssue
   onJump: (nodeId: string) => void
   onAccept: (issue: SpellIssue, replacement: string) => void
+  /** Adds the word to the shared word list (Settings/Library) and dismisses it. */
   onIgnore: (issue: SpellIssue) => void
-  onAddToDictionary: (issue: SpellIssue) => void
   busy: boolean
 }
 
-export function ResultRow({ issue, onJump, onAccept, onIgnore, onAddToDictionary, busy }: ResultRowProps) {
+export function ResultRow({ issue, onJump, onAccept, onIgnore, busy }: ResultRowProps) {
   return (
     <li className="result-row">
       <button className="result-row-context" onClick={() => onJump(issue.nodeId)} title="Jump to layer">
@@ -37,11 +37,8 @@ export function ResultRow({ issue, onJump, onAccept, onIgnore, onAddToDictionary
       )}
 
       <div className="result-row-actions">
-        <button className="link-button" disabled={busy} onClick={() => onIgnore(issue)}>
+        <button className="link-button" disabled={busy} onClick={() => onIgnore(issue)} title="Add to word list, always allow">
           Ignore
-        </button>
-        <button className="link-button" disabled={busy} onClick={() => onAddToDictionary(issue)}>
-          Add to Dictionary
         </button>
       </div>
     </li>

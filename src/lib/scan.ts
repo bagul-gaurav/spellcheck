@@ -1,4 +1,4 @@
-import { collectAllTextItems, type TextItem } from "./traverse"
+import type { TextItem } from "./traverse"
 import { checkWord, loadDictionary, suggest } from "./spellcheck"
 
 export interface SpellIssue {
@@ -56,14 +56,14 @@ function isCorrectlySpelled(word: string): boolean {
 }
 
 /**
- * Scan every text item in the project and return one issue per unique
- * misspelled word found in each item (accepting a fix corrects every
- * occurrence of that word within that same text field).
+ * Scan a pre-collected list of text items (from `collectPageTextItems` or
+ * `collectAllTextItems`) and return one issue per unique misspelled word
+ * found in each item (accepting a fix corrects every occurrence of that word
+ * within that same text field).
  */
-export async function scanProject(options: ScanOptions): Promise<SpellIssue[]> {
+export async function scanItems(items: TextItem[], options: ScanOptions): Promise<SpellIssue[]> {
   await loadDictionary()
 
-  const items = await collectAllTextItems()
   const issues: SpellIssue[] = []
 
   let scanned = 0

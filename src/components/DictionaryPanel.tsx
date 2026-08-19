@@ -5,9 +5,18 @@ interface DictionaryPanelProps {
   words: string[]
   loading: boolean
   onChange: (words: string[]) => void
+  /** Framing copy — Settings and Library show the same list with different context. */
+  description: string
+  addPlaceholder?: string
 }
 
-export function DictionaryPanel({ words, loading, onChange }: DictionaryPanelProps) {
+export function DictionaryPanel({
+  words,
+  loading,
+  onChange,
+  description,
+  addPlaceholder = "Add a word…",
+}: DictionaryPanelProps) {
   const [newWord, setNewWord] = useState("")
   const [busy, setBusy] = useState(false)
 
@@ -38,16 +47,13 @@ export function DictionaryPanel({ words, loading, onChange }: DictionaryPanelPro
 
   return (
     <div className="panel">
-      <p className="panel-description">
-        Words here are always treated as correctly spelled during a scan — use it for brand names, jargon, or anything
-        else you don't want flagged.
-      </p>
+      <p className="panel-description">{description}</p>
 
       <div className="dictionary-form">
         <input
           className="text-input"
           type="text"
-          placeholder="Add a word…"
+          placeholder={addPlaceholder}
           value={newWord}
           onChange={event => setNewWord(event.target.value)}
           onKeyDown={event => {

@@ -7,7 +7,6 @@ interface ResultsListProps {
   onJump: (nodeId: string) => void
   onAccept: (issue: SpellIssue, replacement: string) => void
   onIgnore: (issue: SpellIssue) => void
-  onAddToDictionary: (issue: SpellIssue) => void
   busyId: string | null
 }
 
@@ -16,7 +15,7 @@ interface Group {
   issues: SpellIssue[]
 }
 
-export function ResultsList({ issues, onJump, onAccept, onIgnore, onAddToDictionary, busyId }: ResultsListProps) {
+export function ResultsList({ issues, onJump, onAccept, onIgnore, busyId }: ResultsListProps) {
   const groups = useMemo(() => {
     const byLocation = new Map<string, SpellIssue[]>()
     for (const issue of issues) {
@@ -48,7 +47,6 @@ export function ResultsList({ issues, onJump, onAccept, onIgnore, onAddToDiction
                 onJump={onJump}
                 onAccept={onAccept}
                 onIgnore={onIgnore}
-                onAddToDictionary={onAddToDictionary}
                 busy={busyId === issue.id}
               />
             ))}

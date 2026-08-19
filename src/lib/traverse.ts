@@ -1,4 +1,21 @@
-import { framer, isTextNode, type AnyNode, type ComponentInstanceNode, type TextNode } from "@framer/plugin"
+import {
+  framer,
+  isTextNode,
+  type AnyNode,
+  type CanvasRootNode,
+  type ComponentInstanceNode,
+  type TextNode,
+} from "@framer/plugin"
+
+/**
+ * Anything `getNodesWithType` can be called on: either the top-level
+ * `framer` API (project-wide) or a specific node (scoped to its
+ * descendants) — both share the same overload signatures.
+ */
+interface NodeQueryScope {
+  getNodesWithType(type: "TextNode"): Promise<TextNode[]>
+  getNodesWithType(type: "ComponentInstanceNode"): Promise<ComponentInstanceNode[]>
+}
 
 /**
  * A single piece of editable text found somewhere in the project: either a
@@ -43,7 +60,7 @@ async function resolveLocation(node: AnyNode): Promise<string> {
   return parts.length > 0 ? parts.join(" > ") : "Untitled"
 }
 
-function getDisplayName(node: AnyNode): string | null {
+export function getDisplayName(node: AnyNode): string | null {
   if ("name" in node && typeof node.name === "string" && node.name.trim()) {
     return node.name
   }
@@ -54,12 +71,12 @@ function getDisplayName(node: AnyNode): string | null {
 }
 
 /**
- * Collect every plain-text `TextNode` in the project (across all pages and
- * component definitions — `framer.getNodesWithType` queries the whole
- * project, not just the active page).
+ * Collect every plain-text `TextNode` within `scope`. Pass `framer` (the
+ * default) to search the whole project, or a specific `CanvasRootNode` to
+ * scope the search to just that page/component's descendants.
  */
-export async function collectTextNodeItems(): Promise<TextItem[]> {
-  const textNodes = await framer.getNodesWithType("TextNode")
+export async function collectTextNodeItems(scope: NodeQueryScope = framer): Promise<TextItem[]> {
+  const textNodes = await scope.getNodesWithType("TextNode")
   const items: TextItem[] = []
 
   for (const node of textNodes) {
@@ -87,9 +104,12 @@ export async function collectTextNodeItems(): Promise<TextItem[]> {
  * Relies on the (alpha) `typedControls` getter to know which control keys
  * hold text; instances that don't expose it are skipped rather than guessed
  * at, to avoid mistaking colors/URLs/etc for text.
+ *
+ * Pass `framer` (the default) to search the whole project, or a specific
+ * `CanvasRootNode` to scope the search to just that page/component.
  */
-export async function collectComponentControlItems(): Promise<TextItem[]> {
-  const instances = await framer.getNodesWithType("ComponentInstanceNode")
+export async function collectComponentControlItems(scope: NodeQueryScope = framer): Promise<TextItem[]> {
+  const instances = await scope.getNodesWithType("ComponentInstanceNode")
   const items: TextItem[] = []
 
   for (const node of instances) {
@@ -133,6 +153,19 @@ function getTypedTextControls(node: ComponentInstanceNode): Array<[string, strin
 /** Collect all scannable text in the project: text nodes plus component-instance text controls. */
 export async function collectAllTextItems(): Promise<TextItem[]> {
   const [textItems, controlItems] = await Promise.all([collectTextNodeItems(), collectComponentControlItems()])
+  return [...textItems, ...controlItems]
+}
+
+/**
+ * Collect all scannable text within a single page or component — the
+ * currently active canvas root — rather than the whole project. Used by the
+ * home screen's "Scan This Page" action.
+ */
+export async function collectPageTextItems(root: CanvasRootNode): Promise<TextItem[]> {
+  const [textItems, controlItems] = await Promise.all([
+    collectTextNodeItems(root),
+    collectComponentControlItems(root),
+  ])
   return [...textItems, ...controlItems]
 }
 
