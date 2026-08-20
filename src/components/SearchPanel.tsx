@@ -13,14 +13,23 @@ export function SearchPanel() {
   const [searching, setSearching] = useState(false)
   const [searched, setSearched] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const runSearch = useCallback(async () => {
     setSearching(true)
+    setError(null)
     try {
       const outcome = await searchProject(query, { caseSensitive, wholeWord })
       setResults(outcome.results)
       setTruncated(outcome.truncated)
       setSearched(true)
+    } catch (err) {
+      // Without this the failure surfaced only as an unhandled rejection in
+      // the console: the panel just sat there looking like an empty result.
+      setResults([])
+      setTruncated(false)
+      setSearched(false)
+      setError(err instanceof Error ? err.message : "Something went wrong while searching.")
     } finally {
       setSearching(false)
     }
@@ -40,6 +49,8 @@ export function SearchPanel() {
         if (applied) {
           setResults(current => current.filter(item => item.id !== result.id))
         }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Something went wrong while replacing.")
       } finally {
         setBusyId(null)
       }
@@ -93,6 +104,8 @@ export function SearchPanel() {
           )}
         </div>
       </div>
+
+      {error && <p className="error-state">{error}</p>}
 
       {searched && results.length === 0 && <p className="empty-state">No matches found.</p>}
 

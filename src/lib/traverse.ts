@@ -6,6 +6,7 @@ import {
   type ComponentInstanceNode,
   type TextNode,
 } from "@framer/plugin"
+import { throwIfAborted } from "./cancellation"
 
 /**
  * Anything `getNodesWithType` can be called on: either the top-level
@@ -36,19 +37,35 @@ export interface TextItem {
 
 const MAX_ANCESTOR_WALK = 60
 
+/** Options accepted by every text-collection entry point. */
+export interface CollectOptions {
+  /** Abort an in-flight collection; throws `ScanCancelledError`. */
+  signal?: AbortSignal
+}
+
 /**
  * Run `fn` over `items` with at most `limit` calls in flight at once.
  * Plain `Promise.all` over thousands of items would fire that many
  * concurrent messages at the Framer host at once; a fully sequential
  * `for` loop is safe but needlessly slow (one network round-trip at a
  * time). This gives bounded concurrency instead.
+ *
+ * If `options.signal` aborts, each worker throws at its next item boundary,
+ * so a cancelled scan stops issuing round-trips rather than running to
+ * completion in the background.
  */
-export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+  options: CollectOptions = {},
+): Promise<R[]> {
   const results: R[] = new Array(items.length)
   let nextIndex = 0
 
   async function worker() {
     while (nextIndex < items.length) {
+      throwIfAborted(options.signal)
       const current = nextIndex++
       results[current] = await fn(items[current])
     }
@@ -105,11 +122,14 @@ const FETCH_CONCURRENCY = 24
  * default) to search the whole project, or a specific `CanvasRootNode` to
  * scope the search to just that page/component's descendants.
  */
-export async function collectTextNodeItems(scope: NodeQueryScope = framer): Promise<TextItem[]> {
-  const rawItems = await collectTextNodeItemsRaw(scope)
+export async function collectTextNodeItems(
+  scope: NodeQueryScope = framer,
+  options: CollectOptions = {},
+): Promise<TextItem[]> {
+  const rawItems = await collectTextNodeItemsRaw(scope, options)
   const items: TextItem[] = []
 
-  const locations = await mapWithConcurrency(rawItems, FETCH_CONCURRENCY, item => resolveLocation(item.node))
+  const locations = await mapWithConcurrency(rawItems, FETCH_CONCURRENCY, item => resolveLocation(item.node), options)
   for (let i = 0; i < rawItems.length; i++) {
     const raw = rawItems[i]
     items.push({ id: raw.id, nodeId: raw.nodeId, kind: raw.kind, controlKey: raw.controlKey, text: raw.text, location: locations[i] })
@@ -130,11 +150,14 @@ export async function collectTextNodeItems(scope: NodeQueryScope = framer): Prom
  * Pass `framer` (the default) to search the whole project, or a specific
  * `CanvasRootNode` to scope the search to just that page/component.
  */
-export async function collectComponentControlItems(scope: NodeQueryScope = framer): Promise<TextItem[]> {
-  const rawItems = await collectComponentControlItemsRaw(scope)
+export async function collectComponentControlItems(
+  scope: NodeQueryScope = framer,
+  options: CollectOptions = {},
+): Promise<TextItem[]> {
+  const rawItems = await collectComponentControlItemsRaw(scope, options)
   const items: TextItem[] = []
 
-  const locations = await mapWithConcurrency(rawItems, FETCH_CONCURRENCY, item => resolveLocation(item.node))
+  const locations = await mapWithConcurrency(rawItems, FETCH_CONCURRENCY, item => resolveLocation(item.node), options)
   for (let i = 0; i < rawItems.length; i++) {
     const raw = rawItems[i]
     items.push({
@@ -164,16 +187,23 @@ interface RawTextItem extends Omit<TextItem, "location"> {
  * paying `resolveLocation`'s cost for every single one (rather than just
  * the matches) is what causes the whole plugin to stall on a large project.
  */
-export async function collectTextNodeItemsRaw(scope: NodeQueryScope = framer): Promise<RawTextItem[]> {
+export async function collectTextNodeItemsRaw(
+  scope: NodeQueryScope = framer,
+  options: CollectOptions = {},
+): Promise<RawTextItem[]> {
   const textNodes = await scope.getNodesWithType("TextNode")
+  throwIfAborted(options.signal)
 
   // Some nodes returned by getNodesWithType("TextNode") — e.g. replica nodes
   // belonging to a non-primary breakpoint or component variant — can still
   // reject a getText() call host-side ("Node is not a text node"). One bad
   // node must not abort the whole search, so failures are treated as "no
   // text" rather than propagated.
-  const texts = await mapWithConcurrency(textNodes, FETCH_CONCURRENCY, node =>
-    node.getText().catch(() => null),
+  const texts = await mapWithConcurrency(
+    textNodes,
+    FETCH_CONCURRENCY,
+    node => node.getText().catch(() => null),
+    options,
   )
 
   const items: RawTextItem[] = []
@@ -186,8 +216,12 @@ export async function collectTextNodeItemsRaw(scope: NodeQueryScope = framer): P
 }
 
 /** Raw (no location resolved yet) counterpart to `collectComponentControlItems` — see `collectTextNodeItemsRaw`. */
-export async function collectComponentControlItemsRaw(scope: NodeQueryScope = framer): Promise<RawTextItem[]> {
+export async function collectComponentControlItemsRaw(
+  scope: NodeQueryScope = framer,
+  options: CollectOptions = {},
+): Promise<RawTextItem[]> {
   const instances = await scope.getNodesWithType("ComponentInstanceNode")
+  throwIfAborted(options.signal)
   const items: RawTextItem[] = []
 
   for (const node of instances) {
@@ -219,9 +253,16 @@ function getTypedTextControls(node: ComponentInstanceNode): Array<[string, strin
   return pairs
 }
 
-/** Collect all scannable text in the project: text nodes plus component-instance text controls. */
-export async function collectAllTextItems(): Promise<TextItem[]> {
-  const [textItems, controlItems] = await Promise.all([collectTextNodeItems(), collectComponentControlItems()])
+/**
+ * Collect all scannable text in the project: text nodes plus
+ * component-instance text controls, across every page and component. Used by
+ * the home screen's project-wide scan.
+ */
+export async function collectAllTextItems(options: CollectOptions = {}): Promise<TextItem[]> {
+  const [textItems, controlItems] = await Promise.all([
+    collectTextNodeItems(framer, options),
+    collectComponentControlItems(framer, options),
+  ])
   return [...textItems, ...controlItems]
 }
 
@@ -230,10 +271,13 @@ export async function collectAllTextItems(): Promise<TextItem[]> {
  * currently active canvas root — rather than the whole project. Used by the
  * home screen's "Scan This Page" action.
  */
-export async function collectPageTextItems(root: CanvasRootNode): Promise<TextItem[]> {
+export async function collectPageTextItems(
+  root: CanvasRootNode,
+  options: CollectOptions = {},
+): Promise<TextItem[]> {
   const [textItems, controlItems] = await Promise.all([
-    collectTextNodeItems(root),
-    collectComponentControlItems(root),
+    collectTextNodeItems(root, options),
+    collectComponentControlItems(root, options),
   ])
   return [...textItems, ...controlItems]
 }

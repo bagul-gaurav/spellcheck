@@ -137,6 +137,44 @@ body {
   cursor: default;
 }
 
+.scope-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--framer-color-bg-secondary);
+}
+
+.scope-option {
+  /* See .icon-button — opting out of Framer's global button{width:100%}. */
+  width: auto;
+  flex: 1;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--framer-color-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.scope-option:hover:not(:disabled) {
+  color: var(--framer-color-text);
+}
+
+.scope-option-active {
+  background: var(--framer-color-bg);
+  color: var(--framer-color-text);
+}
+
+.scope-option:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .progress {
   display: flex;
   flex-direction: column;

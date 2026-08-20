@@ -1,4 +1,5 @@
 import { collectComponentControlItemsRaw, collectTextNodeItemsRaw, mapWithConcurrency, resolveLocation } from "./traverse"
+import { buildMatchPattern } from "./wordPattern"
 
 export interface SearchOptions {
   caseSensitive?: boolean
@@ -33,10 +34,6 @@ const MAX_RESULTS = 200
 /** Round-trips (location lookups) allowed in flight at once when resolving matched results. */
 const LOCATION_CONCURRENCY = 24
 
-function escapeRegExp(literal: string): string {
-  return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-}
-
 function buildContext(text: string, index: number, matchLength: number): string {
   const radius = 24
   const start = Math.max(0, index - radius)
@@ -59,9 +56,9 @@ export async function searchProject(query: string, options: SearchOptions = {}):
   const trimmed = query.trim()
   if (!trimmed) return { results: [], truncated: false }
 
-  const escaped = escapeRegExp(trimmed)
-  const source = options.wholeWord ? `\\b${escaped}\\b` : escaped
-  const pattern = new RegExp(source, options.caseSensitive ? "g" : "gi")
+  // Built by the same helper the replacer uses, so a result that was found
+  // here is always a result "Replace" can actually rewrite.
+  const pattern = buildMatchPattern(trimmed, options)
 
   const [textItems, controlItems] = await Promise.all([collectTextNodeItemsRaw(), collectComponentControlItemsRaw()])
   const allItems = [...textItems, ...controlItems]
