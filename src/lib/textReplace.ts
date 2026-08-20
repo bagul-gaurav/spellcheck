@@ -1,15 +1,11 @@
 import { framer, isComponentInstanceNode } from "@framer/plugin"
 import { getTextNodeById } from "./traverse"
+import { buildMatchPattern } from "./wordPattern"
 
 export interface ReplaceTarget {
   nodeId: string
   kind: "text" | "control"
   controlKey?: string
-}
-
-/** Escape a string for safe use inside a `RegExp`. */
-function escapeRegExp(literal: string): string {
-  return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 /** Match the capitalization pattern of `sample` onto `word` (best-effort). */
@@ -51,10 +47,14 @@ async function writeText(target: ReplaceTarget, newText: string): Promise<boolea
 }
 
 /**
- * Replace every whole-word, case-insensitive occurrence of `word` in the
- * target's current text with `replacement`, preserving each occurrence's
- * capitalization pattern. Re-reads the live text immediately before writing,
- * so it stays correct even if the scan is stale.
+ * Replace every whole-word occurrence of `word` in the target's current text
+ * with `replacement`, preserving each occurrence's capitalization pattern.
+ * Re-reads the live text immediately before writing, so it stays correct even
+ * if the scan is stale.
+ *
+ * Matching is case-sensitive, mirroring the scanner: it reports `dont` and
+ * `Dont` as two separate issues, so fixing one must not silently consume the
+ * other and leave a stale row behind.
  *
  * @returns `false` if the node/control could no longer be found, or the word
  * is no longer present in the live text (nothing to do).
@@ -63,7 +63,7 @@ export async function replaceWordEverywhere(target: ReplaceTarget, word: string,
   const currentText = await readCurrentText(target)
   if (currentText === null) return false
 
-  const pattern = new RegExp(`\\b${escapeRegExp(word)}\\b`, "g")
+  const pattern = buildMatchPattern(word, { wholeWord: true, caseSensitive: true })
   let matched = false
   const newText = currentText.replace(pattern, match => {
     matched = true
@@ -88,8 +88,7 @@ export async function replaceAllOccurrences(
   const currentText = await readCurrentText(target)
   if (currentText === null || !query) return false
 
-  const escaped = escapeRegExp(query)
-  const pattern = new RegExp(options.wholeWord ? `\\b${escaped}\\b` : escaped, options.caseSensitive ? "g" : "gi")
+  const pattern = buildMatchPattern(query, options)
 
   if (!pattern.test(currentText)) return false
   pattern.lastIndex = 0

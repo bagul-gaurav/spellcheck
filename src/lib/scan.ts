@@ -1,5 +1,7 @@
 import type { TextItem } from "./traverse"
 import { checkWord, loadDictionary, suggest } from "./spellcheck"
+import { throwIfAborted } from "./cancellation"
+import { createTokenPattern } from "./wordPattern"
 
 export interface SpellIssue {
   id: string
@@ -23,10 +25,16 @@ export interface ScanOptions {
   /** Lowercased set of words to never flag. */
   ignoredWords: Set<string>
   onProgress?: (progress: ScanProgress) => void
+  /** Abort an in-flight scan; throws `ScanCancelledError`. */
+  signal?: AbortSignal
 }
 
-// Unicode-aware "word" — letters and internal apostrophes (don't/don't).
-const WORD_PATTERN = /[\p{L}][\p{L}'’]*/gu
+/**
+ * Unicode-aware "word" — letters and internal apostrophes (don't/don’t).
+ * Shared with the replacer via `wordPattern`, so every word this flags is a
+ * word a fix can actually find again.
+ */
+const WORD_PATTERN = createTokenPattern()
 
 function tokenize(text: string): Array<{ word: string; index: number }> {
   const matches: Array<{ word: string; index: number }> = []
@@ -60,14 +68,18 @@ function isCorrectlySpelled(word: string): boolean {
  * `collectAllTextItems`) and return one issue per unique misspelled word
  * found in each item (accepting a fix corrects every occurrence of that word
  * within that same text field).
+ *
+ * Throws `ScanCancelledError` if `options.signal` aborts mid-scan.
  */
 export async function scanItems(items: TextItem[], options: ScanOptions): Promise<SpellIssue[]> {
   await loadDictionary()
+  throwIfAborted(options.signal)
 
   const issues: SpellIssue[] = []
 
   let scanned = 0
   for (const item of items) {
+    throwIfAborted(options.signal)
     scanned++
     options.onProgress?.({ scanned, total: items.length })
 
